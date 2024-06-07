@@ -1,7 +1,9 @@
 use std::env::{self, current_dir};
-use std::path;
+use std::{io, path};
 use std::fs;
 use std::str::from_utf8;
+
+use xml::reader::{EventReader, XmlEvent};
 
 fn main() -> anyhow::Result<()>{
     let args: Vec<String> = env::args().collect();
@@ -31,9 +33,37 @@ fn main() -> anyhow::Result<()>{
 }
 
 fn rename_cad_files( path: &path::PathBuf ) -> anyhow::Result<()>{
-    let data: Vec<u8> = fs::read(path)?;
+    let file = fs::File::open(path)?;
+    let file = io::BufReader::new(file);
+    let contents = String::new();
 
-    println!("file: {}\n {}", path.display(), from_utf8(&data)? );
+    let parser = EventReader::new(file);
+    let mut depth = 0;
+    for e in parser {
+        match e {
+            Ok(XmlEvent::StartElement { name, .. }) => {
+                println!("{:spaces$}+{name}", "", spaces = depth * 2);
+                depth += 1;
+            }
+            Ok(XmlEvent::EndElement { name }) => {
+                depth -= 1;
+                println!("{:spaces$}-{name}", "", spaces = depth * 2);
+            }
+
+            Ok( XmlEvent::Characters(contents) ) => {
+                println!("{}", contents);
+            }
+
+            Err(e) => {
+                eprintln!("Error: {e}");
+                break;
+            }
+            // There's more: https://docs.rs/xml-rs/latest/xml/reader/enum.XmlEvent.html
+            _ => {}
+        }
+    }
+
+    println!("file: {}", path.display());
 
     Ok(())
 }
